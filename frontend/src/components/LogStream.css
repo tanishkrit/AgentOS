@@ -1,0 +1,41 @@
+/* ═══════════════════════════════════════════════════════════════
+   LogStream Styles
+   ═══════════════════════════════════════════════════════════════ */
+
+.log-stream {
+    flex: 1;
+    overflow: auto;
+    padding: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    font-family: var(--font-mono);
+    font-size: 12px;
+}
+
+.log-entry {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    padding: 6px 8px;
+    border-radius: var(--radius-sm);
+    animation: logFadeIn 0.25s ease-out;
+    line-height: 1.4;
+}
+
+.log-entry:hover { background: var(--bg-elevated); }
+
+.log-time { color: var(--text-muted); flex-shrink: 0; font-size: 11px; padding-top: 1px; }
+
+.log-badge {
+    flex-shrink: 0; padding: 1px 6px; border-radius: 4px;
+    font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.3px;
+}
+
+.log-badge.system  { background: var(--accent-purple-dim); color: var(--accent-purple); }
+.log-badge.agent   { background: var(--accent-cyan-dim); color: var(--accent-cyan); }
+.log-badge.success { background: var(--accent-green-dim); color: var(--accent-green); }
+.log-badge.error   { background: var(--accent-red-dim); color: var(--accent-red); }
+.log-badge.warning { background: var(--accent-amber-dim); color: var(--accent-amber); }
+
+.log-text { color: var(--text-secondary); word-break: break-word; }

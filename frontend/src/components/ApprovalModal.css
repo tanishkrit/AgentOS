@@ -1,0 +1,41 @@
+/* ═══════════════════════════════════════════════════════════════
+   ApprovalModal Styles
+   ═══════════════════════════════════════════════════════════════ */
+
+.approval-overlay {
+    position: fixed; inset: 0;
+    background: rgba(0, 0, 0, 0.6);
+    backdrop-filter: blur(8px);
+    display: flex; align-items: center; justify-content: center;
+    z-index: 1000; animation: fadeIn 0.3s ease;
+}
+
+.approval-modal {
+    background: var(--bg-card-solid);
+    border: 1px solid var(--border-medium);
+    border-radius: var(--radius-xl);
+    padding: 32px; max-width: 440px; width: 90%;
+    text-align: center;
+    box-shadow: 0 24px 64px rgba(0, 0, 0, 0.5);
+    animation: modalSlideUp 0.35s ease-out;
+}
+
+.approval-icon { margin-bottom: 16px; }
+
+.approval-title {
+    font-size: 20px; font-weight: 700;
+    margin-bottom: 8px; color: var(--text-primary);
+}
+
+.approval-desc {
+    font-size: 14px; color: var(--text-secondary);
+    margin-bottom: 28px; line-height: 1.5;
+}
+
+.approval-actions { display: flex; gap: 12px; }
+
+.approval-actions .btn-approve,
+.approval-actions .btn-deny {
+    flex: 1;
+    padding: 12px 20px;
+}

@@ -1,0 +1,233 @@
+/* ═══════════════════════════════════════════════════════════════
+   TaskNode Styles (n8n-Inspired)
+   ═══════════════════════════════════════════════════════════════ */
+
+.task-node {
+    position: relative;
+    width: 290px;
+    height: 94px;
+    background: #1e2230;
+    border: 2px solid #363c54;
+    border-radius: 12px;
+    padding: 12px 16px;
+    cursor: pointer;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.35);
+}
+
+.task-node:hover {
+    transform: translateY(-2px);
+    border-color: #555e82;
+    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.5);
+}
+
+/* Status Borders */
+.task-node.pending {
+    border-style: dashed;
+    border-color: #4c5270;
+}
+
+.task-node.thinking {
+    border-color: var(--accent-purple);
+    box-shadow: 0 0 20px rgba(139, 92, 246, 0.35);
+    animation: thinkingGlow 2s ease-in-out infinite;
+}
+
+.task-node.running {
+    border-color: var(--accent-cyan);
+    box-shadow: 0 0 20px rgba(6, 182, 212, 0.35);
+}
+
+.task-node.completed {
+    border-color: var(--accent-green);
+    box-shadow: 0 0 12px rgba(16, 185, 129, 0.15);
+}
+
+.task-node.failed {
+    border-color: var(--accent-red);
+    box-shadow: 0 0 20px rgba(239, 68, 68, 0.35);
+}
+
+.task-node.waiting-approval {
+    border-color: var(--accent-amber);
+    animation: approvalPulse 1.5s ease-in-out infinite;
+}
+
+/* Node Body & Content */
+.node-body {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex: 1;
+}
+
+.node-icon-wrapper {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 38px;
+    height: 38px;
+    border-radius: 8px;
+    color: white;
+    flex-shrink: 0;
+}
+
+/* Agent Specific Colors (n8n node backgrounds) */
+.node-icon-wrapper.agent-research {
+    background: linear-gradient(135deg, #8B5CF6, #6D28D9); /* purple */
+}
+.node-icon-wrapper.agent-browser {
+    background: linear-gradient(135deg, #06B6D4, #0891B2); /* cyan */
+}
+.node-icon-wrapper.agent-desktop {
+    background: linear-gradient(135deg, #10B981, #047857); /* green */
+}
+.node-icon-wrapper.agent-email {
+    background: linear-gradient(135deg, #F59E0B, #B45309); /* amber */
+}
+
+.node-content {
+    flex: 1;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+}
+
+.node-title-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 2px;
+}
+
+.node-title {
+    font-size: 13px;
+    font-weight: 700;
+    color: #ffffff;
+}
+
+.node-status-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 16px;
+    height: 16px;
+}
+
+.node-description {
+    font-size: 11px;
+    color: #9ea4c0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    line-height: 1.3;
+}
+
+/* Node Footer */
+.node-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    border-top: 1px solid #282d40;
+    padding-top: 6px;
+    margin-top: 6px;
+}
+
+.node-id-badge {
+    font-size: 9px;
+    font-weight: 700;
+    background: #282d40;
+    color: #a4adce;
+    padding: 1px 6px;
+    border-radius: 4px;
+    text-transform: uppercase;
+}
+
+.node-summary-text {
+    font-size: 9px;
+    color: #6c7393;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 180px;
+    text-align: right;
+}
+
+/* Connection Ports */
+.port {
+    position: absolute;
+    width: 10px;
+    height: 10px;
+    background: #1e2230;
+    border: 2px solid #555e82;
+    border-radius: 50%;
+    z-index: 10;
+    transition: all 0.2s ease;
+}
+
+.port-input {
+    left: -6px;
+    top: 50%;
+    transform: translateY(-50%);
+}
+
+.port-output {
+    right: -6px;
+    top: 50%;
+    transform: translateY(-50%);
+}
+
+.task-node:hover .port {
+    border-color: #8b92b6;
+    background: #ffffff;
+}
+
+/* Bottom Ports */
+.ports-bottom {
+    position: absolute;
+    bottom: -6px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    gap: 16px;
+    z-index: 10;
+}
+
+.port-bottom {
+    width: 10px;
+    height: 10px;
+    background: #1e2230;
+    border: 2px solid #4a4f6e;
+    border-radius: 50%;
+    transition: all 0.2s ease;
+}
+
+.port-bottom.port-model {
+    border-color: #8B5CF6; /* Purple for LLM */
+}
+.port-bottom.port-memory {
+    border-color: #EC4899; /* Pink for Memory */
+}
+.port-bottom.port-tool {
+    border-color: #10B981; /* Green for tool */
+}
+
+.task-node:hover .port-bottom {
+    background: #ffffff;
+}
+
+/* Spinners */
+.spinner {
+    width: 12px;
+    height: 12px;
+    border: 2px solid rgba(255, 255, 255, 0.1);
+    border-top-color: var(--accent-cyan);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+}
+.spinner.purple {
+    border-top-color: var(--accent-purple);
+}
