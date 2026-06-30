@@ -137,20 +137,36 @@ class AgentManager:
         """
         logger.info(f"Executing plan: {plan.summary}")
         self._database.log_event("plan_start", {"goal": plan.goal, "task_count": len(plan.tasks)})
+        self._current_plan = plan
 
         # ── Phase 1: Execute all planned tasks ───────────────────────
         all_filepaths = self._execute_all_tasks(plan)
 
+        # Find the verification task in the plan
+        verification_task = next((t for t in plan.tasks if t.agent_type == "verification"), None)
+
         # ── Phase 2: Verification + Remediation Loop ─────────────────
         max_remediation_cycles = 2
         for cycle in range(max_remediation_cycles):
-            verification_result = self._verify_plan(plan, all_filepaths)
-
-            if verification_result.get("verified", False):
+            # Check if verification task completed successfully
+            if verification_task and verification_task.status == "completed":
                 self._emit_log(
                     "verification",
-                    f"✅ Verification PASSED: {verification_result.get('assessment', 'All good')}",
+                    f"✅ Verification PASSED: {verification_task.result.get('summary', 'All good')}",
                 )
+                break
+
+            # If verification task is not in the plan or has not run, fall back to self._verify_plan
+            if not verification_task or not verification_task.result:
+                verification_result = self._verify_plan(plan, all_filepaths)
+            else:
+                verification_result = verification_task.result
+
+            if verification_result.get("verified", False):
+                # If we verified it in the fallback, or if we got verified=True, make sure verification_task is completed
+                if verification_task:
+                    verification_task.status = "completed"
+                    verification_task.result = verification_result
                 break
 
             # Verification failed — attempt targeted remediation
@@ -199,6 +215,16 @@ class AgentManager:
                     filepath = task_to_fix.result["filepath"]
                     if filepath not in all_filepaths:
                         all_filepaths.append(filepath)
+
+            # After re-running the modified tasks, we MUST re-run the verification task so it updates
+            if verification_task:
+                self._emit_log(
+                    "verification",
+                    "🔍 Re-running Verification Agent to check updated results...",
+                )
+                verification_task.status = "pending"
+                verification_task.result = {}
+                self._execute_task(verification_task)
         else:
             # Exhausted remediation cycles
             self._emit_log(
@@ -309,6 +335,28 @@ class AgentManager:
         # Emit "running" state
         task.status = "running"
         self._emit_status(task.id, "running", f"Executing: {task.description}")
+
+        # Populate verification parameters dynamically
+        if task.agent_type == "verification" and hasattr(self, "_current_plan") and self._current_plan:
+            plan_tasks = []
+            created_files = []
+            for t in self._current_plan.tasks:
+                if t.id == task.id:
+                    continue
+                plan_tasks.append({
+                    "id": t.id,
+                    "agent_type": t.agent_type,
+                    "description": t.description,
+                    "status": t.status,
+                    "parameters": t.parameters,
+                    "result": t.result,
+                })
+                if t.result and t.result.get("filepath"):
+                    created_files.append(t.result["filepath"])
+            
+            task.parameters["goal"] = self._current_plan.goal
+            task.parameters["plan_tasks"] = plan_tasks
+            task.parameters["created_files"] = created_files
 
         agent = self._spawn_agent(task.agent_type, task.id)
 

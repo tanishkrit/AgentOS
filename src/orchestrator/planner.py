@@ -112,29 +112,45 @@ class Planner:
 
         If the LLM is unavailable, returns a smart fallback plan.
         """
+        plan = None
         if not self._llm.available:
-            return self._fallback_plan(goal)
+            plan = self._fallback_plan(goal)
+        else:
+            try:
+                logger.info("Sending goal to Ollama for decomposition...")
 
-        try:
-            logger.info("Sending goal to Ollama for decomposition...")
+                plan_data = self._llm.generate_json(
+                    prompt=f"User goal: {goal}",
+                    system=SYSTEM_PROMPT,
+                    temperature=0.3,
+                    max_tokens=4096,
+                    timeout=120,
+                )
 
-            plan_data = self._llm.generate_json(
-                prompt=f"User goal: {goal}",
-                system=SYSTEM_PROMPT,
-                temperature=0.3,
-                max_tokens=4096,
-                timeout=120,
-            )
+                if plan_data is None:
+                    logger.warning("LLM returned no valid JSON. Using fallback.")
+                    plan = self._fallback_plan(goal)
+                else:
+                    plan = self._parse_plan(goal, plan_data)
 
-            if plan_data is None:
-                logger.warning("LLM returned no valid JSON. Using fallback.")
-                return self._fallback_plan(goal)
+            except Exception as e:
+                logger.error(f"Planning failed: {e}")
+                plan = self._fallback_plan(goal)
 
-            return self._parse_plan(goal, plan_data)
+        # Append verification task to the plan so it shows in the workflow
+        if plan and plan.tasks:
+            has_verification = any(t.agent_type == "verification" for t in plan.tasks)
+            if not has_verification:
+                verification_task = Task(
+                    id="verification_task",
+                    description="Verify if the user's goal was fully achieved",
+                    agent_type="verification",
+                    depends_on=[t.id for t in plan.tasks],
+                    parameters={"goal": goal},
+                )
+                plan.tasks.append(verification_task)
 
-        except Exception as e:
-            logger.error(f"Planning failed: {e}")
-            return self._fallback_plan(goal)
+        return plan
 
     def _parse_plan(self, goal: str, data: dict) -> ExecutionPlan:
         """Convert raw JSON dict into an ExecutionPlan."""

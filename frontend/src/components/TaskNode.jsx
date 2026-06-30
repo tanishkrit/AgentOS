@@ -8,6 +8,8 @@ const TaskNode = forwardRef(function TaskNode({ task, index, onClick }, ref) {
       case 'browser': return 'Browser Agent'
       case 'desktop': return 'Desktop Agent'
       case 'email': return 'Email Agent'
+      case 'presentation': return 'Presentation Agent'
+      case 'verification': return 'Verification Agent'
       default: return 'AI Agent'
     }
   }
@@ -44,6 +46,22 @@ const TaskNode = forwardRef(function TaskNode({ task, index, onClick }, ref) {
             <polyline points="22,6 12,13 2,6"></polyline>
           </svg>
         )
+      case 'presentation':
+        return (
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect>
+            <line x1="8" y1="21" x2="16" y2="21"></line>
+            <line x1="12" y1="17" x2="12" y2="21"></line>
+          </svg>
+        )
+      case 'verification':
+        return (
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"></path>
+            <rect x="8" y="2" width="8" height="4" rx="1" ry="1"></rect>
+            <polyline points="9 14 11 16 15 12"></polyline>
+          </svg>
+        )
       default:
         return (
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
@@ -55,7 +73,7 @@ const TaskNode = forwardRef(function TaskNode({ task, index, onClick }, ref) {
   }
 
   // Determine if agent uses specialized tools
-  const hasTool = ['research', 'browser', 'desktop', 'email'].includes(task.agent_type)
+  const hasTool = ['research', 'browser', 'desktop', 'email', 'presentation', 'verification'].includes(task.agent_type)
 
   return (
     <div

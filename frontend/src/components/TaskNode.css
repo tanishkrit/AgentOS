@@ -88,6 +88,12 @@
 .node-icon-wrapper.agent-email {
     background: linear-gradient(135deg, #F59E0B, #B45309); /* amber */
 }
+.node-icon-wrapper.agent-presentation {
+    background: linear-gradient(135deg, #EC4899, #BE185D); /* pink/rose */
+}
+.node-icon-wrapper.agent-verification {
+    background: linear-gradient(135deg, #10B981, #059669); /* emerald/green */
+}
 
 .node-content {
     flex: 1;
