@@ -64,7 +64,7 @@ Each task must specify:
 Agent types and their capabilities:
 - "research": Searches the web (queries Google & DuckDuckGo), visits URLs, scrapes page contents, and extracts structured lists/tables of items (such as names, phone numbers, emails, addresses) using a local LLM. Always use this agent to gather and compile contact or list information. Parameters: {"search_query": "...", "urls": [...]}
 - "browser": Opens URLs in a real browser (Brave/Chrome). Parameters: {"url": "..."}
-- "desktop": Controls desktop apps (Excel, Notepad, Word, etc.). If "save_to_excel" is true, it automatically reads the structured lists extracted by the "research" agent and writes them into an Excel spreadsheet. Parameters: {"app": "excel|notepad|word", "save_to_excel": true/false, "save_to_notepad": true/false, "content": "text to type"}
+- "desktop": Controls desktop apps (Excel, Notepad, Word, etc.). If "save_to_excel" is true, it automatically reads the structured lists extracted by the "research" agent and writes them into an Excel spreadsheet. If "save_to_word" is true, it writes them into a Word document (.docx). Parameters: {"app": "excel|notepad|word", "save_to_excel": true/false, "save_to_notepad": true/false, "save_to_word": true/false, "content": "text to type"}
 - "email": Drafts and sends emails via SMTP. Parameters: {"recipients": [...], "subject": "...", "template": "..."}
 - "coding": Writes and executes Python scripts for custom API calls, file format conversions, or mathematical computations. Do NOT use this agent for web searching, contact scraping, or writing to Excel/text, as the "research" and "desktop" agents already handle these tasks.
 - "presentation": Creates professional PowerPoint (.pptx) presentations with styled themes, layouts, and animations. Use this when the user wants a PPT, presentation, slide deck, or pitch deck. It takes research data from upstream tasks and generates a polished multi-slide deck. Parameters: {"raw_goal": "...", "theme": "charcoal_dark|deep_navy|midnight_violet|clean_light"}
@@ -73,10 +73,11 @@ IMPORTANT RULES:
 1. If the user wants to search for lists of items (e.g. turfs, businesses, restaurants) and save them to Excel, create a simple 2-task workflow: a "research" task to find and extract the details, followed by a "desktop" task (with "save_to_excel": true) depending on it. Do NOT add a "coding" task.
 2. If the user mentions "excel" or "spreadsheet" or "save", add a desktop task with "save_to_excel": true
 3. If the user mentions "notepad" or "text file" or "note", add a desktop task with "save_to_notepad": true
-4. If the user mentions a specific topic to research for the presentation/ppt (e.g. "create a presentation about AI Agents"), create a "research" task first to gather information, then a "presentation" task depending on it. If there is no specific topic to research (e.g., "create a ppt" or "create ppt using powerpoint"), create only the "presentation" task directly.
-5. Research tasks should always include a "search_query" parameter
-6. Desktop tasks that need data from research must list the research task in "depends_on"
-7. Keep tasks small and focused — one clear action each
+4. If the user mentions "word" or "docx" or "word document" or "report", add a desktop task with "save_to_word": true
+5. If the user mentions a specific topic to research for the presentation/ppt (e.g. "create a presentation about AI Agents"), create a "research" task first to gather information, then a "presentation" task depending on it. If there is no specific topic to research (e.g., "create a ppt" or "create ppt using powerpoint"), create only the "presentation" task directly.
+6. Research tasks should always include a "search_query" parameter
+7. Desktop tasks that need data from research must list the research task in "depends_on"
+8. Keep tasks small and focused — one clear action each
 
 
 Respond ONLY with valid JSON in this format:
@@ -209,6 +210,12 @@ class Planner:
             for kw in ["notepad", "text file", "save as text", "write to file", "note"]
         )
 
+        # ── Detect if Word output is needed ──────────────────────────
+        needs_word = any(
+            kw in goal_lower
+            for kw in ["word", "docx", "word document", "report in word", "create a report in word", "doc"]
+        )
+
         # ── Detect if presentation is needed ─────────────────────────
         needs_presentation = any(
             kw in goal_lower
@@ -310,6 +317,22 @@ class Planner:
                     parameters={
                         "app": "notepad",
                         "save_to_notepad": True,
+                        "raw_goal": goal,
+                    },
+                )
+            )
+
+        # Add Word output task
+        if needs_word:
+            tasks.append(
+                Task(
+                    id=f"task_{len(tasks) + 1}",
+                    description=f"Save research results to a Word document",
+                    agent_type="desktop",
+                    depends_on=["task_1"] if tasks else [],
+                    parameters={
+                        "app": "word",
+                        "save_to_word": True,
                         "raw_goal": goal,
                     },
                 )

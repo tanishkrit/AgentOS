@@ -18,6 +18,7 @@ from src.tools.desktop import DesktopTool
 from src.tools.file_system import FileSystemTool
 from src.tools.excel import ExcelTool
 from src.config import Config
+from src.utils.llm_client import LLMClient
 
 logger = logging.getLogger(__name__)
 
@@ -57,20 +58,28 @@ class DesktopAgent(BaseAgent):
             # ── Smart routing: determine what to do ──────────────────
             save_to_excel = parameters.get("save_to_excel", False)
             save_to_notepad = parameters.get("save_to_notepad", False)
+            save_to_word = parameters.get("save_to_word", False)
             app = parameters.get("app", "")
             actions = parameters.get("actions", [])
             content = parameters.get("content", "")
 
-            # Auto-detect from task description if flags aren't set
+            # Auto-detect from task description or app parameter if flags aren't set
             desc_lower = task_description.lower()
-            if not save_to_excel and ("excel" in desc_lower or "spreadsheet" in desc_lower):
+            app_lower = str(app).lower() if app else ""
+            if not save_to_excel and ("excel" in desc_lower or "spreadsheet" in desc_lower or app_lower == "excel"):
                 save_to_excel = True
-            if not save_to_notepad and ("notepad" in desc_lower or "text file" in desc_lower):
+            if not save_to_notepad and ("notepad" in desc_lower or "text file" in desc_lower or app_lower == "notepad"):
                 save_to_notepad = True
+            if not save_to_word and ("word" in desc_lower or "docx" in desc_lower or "document" in desc_lower or "report" in desc_lower or app_lower == "word"):
+                save_to_word = True
 
             # ── Recipe: Save to Excel ────────────────────────────────
             if save_to_excel:
                 return self._excel_recipe(excel_tool, desktop_tool, dependency_data, parameters)
+
+            # ── Recipe: Save to Word ─────────────────────────────────
+            if save_to_word:
+                return self._word_recipe(desktop_tool, fs_tool, dependency_data, parameters)
 
             # ── Recipe: Save to Notepad ──────────────────────────────
             if save_to_notepad:
@@ -711,4 +720,261 @@ class DesktopAgent(BaseAgent):
             "success": True,
             "summary": f"Executed {len(actions)} desktop actions.",
             "results": results,
+        }
+
+    def _word_recipe(
+        self,
+        desktop_tool: DesktopTool,
+        fs_tool: FileSystemTool,
+        dependency_data: dict,
+        parameters: dict,
+    ) -> dict:
+        """
+        Create a styled Word document (.docx) from upstream research data.
+        """
+        self.logger.info("Executing Word document recipe...")
+        self._emit_log("📝 Preparing Word document from research data...")
+
+        # ── Lazy import python-docx (install if missing) ────────────────────
+        try:
+            from docx import Document
+            from docx.shared import Inches, Pt, RGBColor
+            from docx.enum.text import WD_ALIGN_PARAGRAPH
+            from docx.oxml import parse_xml
+            from docx.oxml.ns import nsdecls
+        except ImportError:
+            self._emit_log("📥 python-docx not installed. Installing automatically...")
+            try:
+                import sys
+                import subprocess
+                subprocess.check_call(
+                    [sys.executable, "-m", "pip", "install", "python-docx"],
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                )
+                from docx import Document
+                from docx.shared import Inches, Pt, RGBColor
+                from docx.enum.text import WD_ALIGN_PARAGRAPH
+                from docx.oxml import parse_xml
+                from docx.oxml.ns import nsdecls
+            except Exception as e:
+                self.logger.error(f"Failed to install python-docx: {e}")
+                return {
+                    "success": False,
+                    "summary": f"python-docx is not installed and auto-install failed: {e}",
+                    "error": str(e),
+                }
+
+        # ── Extract structured data / fallback data for tables ───────────
+        headers = []
+        rows = []
+        raw_goal = parameters.get("raw_goal", "Research Report")
+
+        for dep_id, dep_result in dependency_data.items():
+            if not isinstance(dep_result, dict):
+                continue
+
+            structured_data = dep_result.get("structured_data", [])
+            structured_fields = dep_result.get("structured_fields", [])
+
+            if structured_data and structured_fields:
+                headers = ["#"] + [f.replace("_", " ").title() for f in structured_fields]
+                for i, item in enumerate(structured_data):
+                    row = [str(i + 1)]
+                    for field in structured_fields:
+                        val = item.get(field, "")
+                        row.append(str(val) if val is not None else "")
+                    rows.append(row)
+                break
+
+        # Fallback to standard sources if no structured data
+        if not rows:
+            for dep_id, dep_result in dependency_data.items():
+                if not isinstance(dep_result, dict):
+                    continue
+                data_items = dep_result.get("data", [])
+                if data_items:
+                    headers = ["#", "Source/Url", "Title", "Snippet"]
+                    for i, item in enumerate(data_items):
+                        rows.append([
+                            str(i + 1),
+                            item.get("source", item.get("url", "")),
+                            item.get("title", ""),
+                            (item.get("snippet", "") or item.get("content", ""))[:150]
+                        ])
+                    break
+
+        # ── LLM report outline generation ────────────────────────────────
+        llm = LLMClient.get_instance()
+        report_data = None
+        if llm.available:
+            self._emit_log("🤖 Using local LLM to draft report outline and sections...")
+            prompt = (
+                f"Topic: {raw_goal}\n\n"
+                f"We are generating a Microsoft Word (.docx) report.\n"
+                f"Write structured content for this report. Return ONLY valid JSON in this format:\n"
+                f"{{\n"
+                f"  \"title\": \"Report Main Title\",\n"
+                f"  \"subtitle\": \"Brief report subtitle\",\n"
+                f"  \"sections\": [\n"
+                f"    {{\n"
+                f"      \"heading\": \"Section Heading\",\n"
+                f"      \"paragraphs\": [\"Paragraph 1 content...\", \"Paragraph 2...\"],\n"
+                f"      \"bullets\": [\"Bullet point 1...\", \"Bullet point 2...\"]\n"
+                f"    }}\n"
+                f"  ]\n"
+                f"}}\n"
+            )
+            report_data = llm.generate_json(
+                prompt=prompt,
+                system="You are a professional report compiler. Return ONLY JSON.",
+                temperature=0.3,
+                max_tokens=2048,
+                timeout=60,
+            )
+
+        # Fallback report layout if LLM fails or is unavailable
+        if not report_data or "sections" not in report_data:
+            report_data = {
+                "title": raw_goal,
+                "subtitle": "Generated Report by AgentOS",
+                "sections": [
+                    {
+                        "heading": "Executive Summary",
+                        "paragraphs": [
+                            "This document contains the collected findings and results retrieved "
+                            "by the autonomous Multi-Agent workspace based on the user's research goal."
+                        ],
+                        "bullets": [
+                            "Information compiled dynamically from online sources.",
+                            "Processed and formatted locally to guarantee privacy."
+                        ]
+                    }
+                ]
+            }
+
+        # ── Document styling & construction ─────────────────────────────
+        doc = Document()
+        
+        # Apply standard style/margins
+        sections = doc.sections
+        for section in sections:
+            section.top_margin = Inches(1)
+            section.bottom_margin = Inches(1)
+            section.left_margin = Inches(1)
+            section.right_margin = Inches(1)
+
+        # Helper to apply font formatting
+        def format_run(run, font_name="Segoe UI", size_pt=11, color_rgb=(51, 51, 51), bold=False, italic=False):
+            run.font.name = font_name
+            run.font.size = Pt(size_pt)
+            run.font.color.rgb = RGBColor(*color_rgb)
+            run.bold = bold
+            run.italic = italic
+
+        # Title
+        p_title = doc.add_paragraph()
+        p_title.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        run_title = p_title.add_run(report_data.get("title", raw_goal))
+        format_run(run_title, font_name="Segoe UI Light", size_pt=26, color_rgb=(30, 41, 59), bold=True)
+        p_title.paragraph_format.space_after = Pt(4)
+
+        # Subtitle
+        subtitle_text = report_data.get("subtitle", "")
+        if subtitle_text:
+            p_sub = doc.add_paragraph()
+            p_sub.alignment = WD_ALIGN_PARAGRAPH.CENTER
+            run_sub = p_sub.add_run(subtitle_text)
+            format_run(run_sub, font_name="Segoe UI", size_pt=12, color_rgb=(100, 116, 139), italic=True)
+            p_sub.paragraph_format.space_after = Pt(24)
+
+        # Divider line
+        doc.add_paragraph().paragraph_format.space_after = Pt(12)
+
+        # Sections
+        for sec in report_data.get("sections", []):
+            heading_text = sec.get("heading", "")
+            if heading_text:
+                p_head = doc.add_paragraph()
+                p_head.paragraph_format.space_before = Pt(18)
+                p_head.paragraph_format.space_after = Pt(6)
+                run_head = p_head.add_run(heading_text)
+                format_run(run_head, font_name="Segoe UI Semibold", size_pt=16, color_rgb=(79, 70, 229), bold=True)
+
+            for p_text in sec.get("paragraphs", []):
+                p_para = doc.add_paragraph()
+                p_para.paragraph_format.space_after = Pt(8)
+                p_para.paragraph_format.line_spacing = 1.15
+                run_para = p_para.add_run(p_text)
+                format_run(run_para, font_name="Segoe UI", size_pt=11)
+
+            for b_text in sec.get("bullets", []):
+                p_bullet = doc.add_paragraph(style='List Bullet')
+                p_bullet.paragraph_format.space_after = Pt(4)
+                run_bullet = p_bullet.add_run(b_text)
+                format_run(run_bullet, font_name="Segoe UI", size_pt=11)
+
+        # Add Data Table
+        if headers and rows:
+            p_table_title = doc.add_paragraph()
+            p_table_title.paragraph_format.space_before = Pt(24)
+            p_table_title.paragraph_format.space_after = Pt(8)
+            run_table_title = p_table_title.add_run("Collected Research Data Listing")
+            format_run(run_table_title, font_name="Segoe UI Semibold", size_pt=14, color_rgb=(79, 70, 229), bold=True)
+
+            table = doc.add_table(rows=1 + len(rows), cols=len(headers))
+            table.style = 'Light Shading Accent 1'
+
+            # Header Row
+            hdr_cells = table.rows[0].cells
+            for col_idx, header in enumerate(headers):
+                hdr_cells[col_idx].text = header
+                # Set shading
+                shading_elm = parse_xml(f'<w:shd {nsdecls("w")} w:fill="4F46E5"/>')
+                hdr_cells[col_idx]._tc.get_or_add_tcPr().append(shading_elm)
+                # Bold white font
+                for p in hdr_cells[col_idx].paragraphs:
+                    p.alignment = WD_ALIGN_PARAGRAPH.LEFT
+                    for run in p.runs:
+                        format_run(run, font_name="Segoe UI Semibold", size_pt=10, color_rgb=(255, 255, 255), bold=True)
+
+            # Data Rows
+            for row_idx, r_data in enumerate(rows):
+                row_cells = table.rows[row_idx + 1].cells
+                for col_idx, text in enumerate(r_data):
+                    row_cells[col_idx].text = str(text)
+                    for p in row_cells[col_idx].paragraphs:
+                        for run in p.runs:
+                            format_run(run, font_name="Segoe UI", size_pt=9.5)
+
+        # Save document
+        from datetime import datetime
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        safe_title = "".join(c for c in report_data.get("title", raw_goal) if c.isalnum() or c in (" ", "_", "-")).strip()
+        safe_title = safe_title.replace(" ", "_")[:40]
+        filename = f"report_{safe_title}_{timestamp}.docx"
+        filepath = str(Config.WORKSPACE_ROOT / filename)
+
+        # Ask user for approval
+        if not self.request_approval(f"Save Word report as: {filename}"):
+            return {
+                "success": False,
+                "summary": "User rejected saving MS Word report.",
+                "error": "User rejected saving MS Word report",
+            }
+
+        doc.save(filepath)
+        self._emit_log(f"✅ MS Word document saved successfully: {filepath}")
+
+        # Attempt to open
+        try:
+            os.startfile(filepath)
+            self._emit_log(f"📂 Opened Word document: {filepath}")
+        except Exception as e:
+            self._emit_log(f"📂 File saved at: {filepath} (Open manually)")
+
+        return {
+            "success": True,
+            "summary": f"Created Word report document: {filepath}",
+            "filepath": filepath,
         }

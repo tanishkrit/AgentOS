@@ -64,6 +64,22 @@ class EmailAgent(BaseAgent):
                 for lead in leads:
                     if isinstance(lead, dict) and "email" in lead:
                         recipients.append(lead)
+                    elif isinstance(lead, str):
+                        recipients.append(lead)
+
+        # Ensure recipients is a list and normalize to list of dicts
+        if isinstance(recipients, str):
+            recipients = [recipients]
+        elif not isinstance(recipients, list):
+            recipients = []
+
+        normalized_recipients = []
+        for r in recipients:
+            if isinstance(r, str):
+                normalized_recipients.append({"email": r, "name": r.split("@")[0]})
+            elif isinstance(r, dict):
+                normalized_recipients.append(r)
+        recipients = normalized_recipients
 
         drafted_emails = []
         sent_count = 0
